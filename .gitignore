@@ -1,0 +1,46 @@
+# Archivos privados y credenciales locales
+FTPServer.txt
+
+# Datos generados por CurseForge y Minecraft
+.cache/
+.curseclient
+downloads/
+logs/
+crash-reports/
+debug.log
+saves/
+screenshots/
+journeymap/
+backups/
+
+# Preferencias y datos personales del jugador
+options.txt
+optionsof.txt
+servers.dat
+servers.dat_old
+realms_persistence.json
+patchouli_data.json
+
+# Contenido fuente del pack. El publicador lo empaqueta en GitHub Releases.
+mods/
+config/
+defaultconfigs/
+resourcepacks/
+shaderpacks/
+patchouli_books/
+kubejs/
+scripts/
+minecraftinstance.json
+
+# Instaladores descargados y artefactos generados
+SKlauncher-*-setup.exe
+dist/
+build/
+*.zip
+*.sha256
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
