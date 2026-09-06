@@ -18,3 +18,12 @@ Cada versión publicará:
 Los mundos, registros, credenciales y preferencias personales están excluidos
 del repositorio y de los paquetes publicados.
 
+## Crear una versión
+
+Ejecuta `Publicar.cmd`, escribe una versión como `1.0.0` y espera a que termine.
+Los archivos resultantes aparecerán en `dist/`. El ZIP contiene el pack y sus
+hashes individuales; `manifest.json` contiene el SHA-256 del ZIP y la dirección
+de descarga de la Release correspondiente.
+
+Después crea en GitHub una Release cuyo tag coincida con `v<version>` y adjunta
+el ZIP y `manifest.json`. Por ejemplo, la versión `1.0.0` usa el tag `v1.0.0`.
