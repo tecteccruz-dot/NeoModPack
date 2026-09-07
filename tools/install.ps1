@@ -129,7 +129,7 @@ function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOp
         return
     }
 
-    $defaultLine = Get-Content -LiteralPath $DefaultOptions |
+    $defaultLine = Get-Content -LiteralPath $DefaultOptions -Encoding UTF8 |
         Where-Object { $_ -match '^resourcePacks:' } |
         Select-Object -First 1
     if (-not $defaultLine) {
@@ -143,7 +143,7 @@ function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOp
         return
     }
 
-    $lines = @(Get-Content -LiteralPath $PlayerOptions)
+    $lines = @(Get-Content -LiteralPath $PlayerOptions -Encoding UTF8)
     $found = $false
     for ($index = 0; $index -lt $lines.Count; $index++) {
         if ($lines[$index] -match '^resourcePacks:') {
@@ -211,7 +211,7 @@ function Register-SKLauncherInstance([string]$GameDirectory, $PackManifest) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LauncherInstances) | Out-Null
     if (Test-Path -LiteralPath $LauncherInstances) {
         Copy-Item -LiteralPath $LauncherInstances -Destination "$LauncherInstances.bak" -Force
-        $document = Get-Content -Raw -LiteralPath $LauncherInstances | ConvertFrom-Json
+        $document = Get-Content -Raw -LiteralPath $LauncherInstances -Encoding UTF8 | ConvertFrom-Json
     }
     else {
         $document = [pscustomobject]@{ instances = @() }
@@ -266,7 +266,7 @@ try {
     try {
         $manifestFile = Join-Path $working 'manifest.json'
         Download-File $manifestAsset.browser_download_url $manifestFile
-        $manifest = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json
+        $manifest = Get-Content -Raw -LiteralPath $manifestFile -Encoding UTF8 | ConvertFrom-Json
         $archiveAsset = $release.assets | Where-Object { $_.name -eq $manifest.archive.filename } | Select-Object -First 1
         if (-not $archiveAsset) { throw "La Release no contiene $($manifest.archive.filename)." }
 
@@ -274,7 +274,7 @@ try {
             $defaultRoot = Join-Path $env:LOCALAPPDATA 'NeoModPack'
             $defaultState = Join-Path $defaultRoot 'state.json'
             if ($UpdateOnly -and (Test-Path -LiteralPath $defaultState)) {
-                $savedState = Get-Content -Raw -LiteralPath $defaultState | ConvertFrom-Json
+                $savedState = Get-Content -Raw -LiteralPath $defaultState -Encoding UTF8 | ConvertFrom-Json
                 if ($savedState.game_directory) {
                     $InstallRoot = Split-Path -Parent $savedState.game_directory
                 }
@@ -296,8 +296,8 @@ try {
             $statePath = Join-Path $InstallRoot 'state.json'
             $installedManifestPath = Join-Path $InstallRoot 'pack-manifest.json'
             if ((Test-Path -LiteralPath $statePath) -and (Test-Path -LiteralPath $installedManifestPath)) {
-                $installedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-                $installedManifest = Get-Content -Raw -LiteralPath $installedManifestPath | ConvertFrom-Json
+                $installedState = Get-Content -Raw -LiteralPath $statePath -Encoding UTF8 | ConvertFrom-Json
+                $installedManifest = Get-Content -Raw -LiteralPath $installedManifestPath -Encoding UTF8 | ConvertFrom-Json
                 if (($installedState.version -eq $manifest.version) -and (Test-InstalledPack $gameDirectory $installedManifest)) {
                     Write-Host "`nNeo Modpack $($manifest.version) ya esta actualizado y completo." -ForegroundColor Green
                     Update-ResourcePackSelection $playerOptions $savedDefaultOptions
@@ -333,7 +333,7 @@ try {
         Expand-SafeArchive $archiveFile $extracted
         $internalManifestPath = Join-Path $extracted '.neo\pack-manifest.json'
         if (-not (Test-Path -LiteralPath $internalManifestPath)) { throw 'El paquete no contiene su manifiesto interno.' }
-        $internalManifest = Get-Content -Raw -LiteralPath $internalManifestPath | ConvertFrom-Json
+        $internalManifest = Get-Content -Raw -LiteralPath $internalManifestPath -Encoding UTF8 | ConvertFrom-Json
         Verify-PackFiles $extracted $internalManifest
         Install-PackFiles $extracted $gameDirectory $internalManifest
 
