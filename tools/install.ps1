@@ -3,6 +3,7 @@ param(
     [string]$InstallRoot,
     [switch]$SkipLauncher,
     [switch]$UpdateOnly,
+    [switch]$Gui,
     [switch]$CheckOnly
 )
 
@@ -18,9 +19,92 @@ $ApiHeaders = @{
     Accept = 'application/vnd.github+json'
     'User-Agent' = 'NeoModPack-Installer'
 }
+$script:MainForm = $null
+$script:StatusLabel = $null
+$script:DetailLabel = $null
+$script:ProgressBar = $null
+
+function Initialize-Gui {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    [Windows.Forms.Application]::EnableVisualStyles()
+
+    $script:MainForm = New-Object Windows.Forms.Form
+    $script:MainForm.Text = if ($UpdateOnly) { 'Actualizar Neo Modpack' } else { 'Instalar Neo Modpack' }
+    $script:MainForm.ClientSize = New-Object Drawing.Size(540, 190)
+    $script:MainForm.StartPosition = 'CenterScreen'
+    $script:MainForm.FormBorderStyle = 'FixedDialog'
+    $script:MainForm.MaximizeBox = $false
+    $script:MainForm.MinimizeBox = $true
+    $script:MainForm.ControlBox = $false
+
+    $title = New-Object Windows.Forms.Label
+    $title.Text = 'Neo Modpack'
+    $title.Font = New-Object Drawing.Font('Segoe UI', 18, [Drawing.FontStyle]::Bold)
+    $title.AutoSize = $true
+    $title.Location = New-Object Drawing.Point(24, 18)
+    $script:MainForm.Controls.Add($title)
+
+    $script:StatusLabel = New-Object Windows.Forms.Label
+    $script:StatusLabel.Text = 'Preparando...'
+    $script:StatusLabel.Font = New-Object Drawing.Font('Segoe UI', 10)
+    $script:StatusLabel.AutoSize = $false
+    $script:StatusLabel.Size = New-Object Drawing.Size(492, 28)
+    $script:StatusLabel.Location = New-Object Drawing.Point(27, 67)
+    $script:MainForm.Controls.Add($script:StatusLabel)
+
+    $script:ProgressBar = New-Object Windows.Forms.ProgressBar
+    $script:ProgressBar.Minimum = 0
+    $script:ProgressBar.Maximum = 100
+    $script:ProgressBar.Value = 0
+    $script:ProgressBar.Size = New-Object Drawing.Size(486, 25)
+    $script:ProgressBar.Location = New-Object Drawing.Point(27, 101)
+    $script:MainForm.Controls.Add($script:ProgressBar)
+
+    $script:DetailLabel = New-Object Windows.Forms.Label
+    $script:DetailLabel.Text = '0%'
+    $script:DetailLabel.Font = New-Object Drawing.Font('Segoe UI', 9)
+    $script:DetailLabel.AutoSize = $false
+    $script:DetailLabel.TextAlign = 'MiddleCenter'
+    $script:DetailLabel.Size = New-Object Drawing.Size(486, 24)
+    $script:DetailLabel.Location = New-Object Drawing.Point(27, 132)
+    $script:MainForm.Controls.Add($script:DetailLabel)
+
+    $script:MainForm.Show()
+    [Windows.Forms.Application]::DoEvents()
+}
+
+function Set-ProgressState([int]$Percent, [string]$Detail, [switch]$Indeterminate) {
+    if ($Gui -and $script:MainForm) {
+        if ($Indeterminate) {
+            $script:ProgressBar.Style = 'Marquee'
+            $script:ProgressBar.MarqueeAnimationSpeed = 25
+        }
+        else {
+            $script:ProgressBar.Style = 'Continuous'
+            $script:ProgressBar.Value = [Math]::Max(0, [Math]::Min(100, $Percent))
+        }
+        $script:DetailLabel.Text = $Detail
+        [Windows.Forms.Application]::DoEvents()
+    }
+    elseif (-not $Indeterminate) {
+        Write-Progress -Activity 'Neo Modpack' -Status $Detail -PercentComplete $Percent
+    }
+}
+
+function Show-Result([string]$Message, [bool]$Success) {
+    if (-not $Gui) { return }
+    $icon = if ($Success) { 'Information' } else { 'Error' }
+    $title = if ($Success) { 'Neo Modpack' } else { 'No se pudo completar' }
+    [Windows.Forms.MessageBox]::Show($Message, $title, 'OK', $icon) | Out-Null
+}
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+    if ($Gui -and $script:StatusLabel) {
+        $script:StatusLabel.Text = $Message
+        Set-ProgressState 0 $Message -Indeterminate
+    }
 }
 
 function Get-LatestRelease([string]$Repository) {
@@ -39,7 +123,43 @@ function Get-LatestRelease([string]$Repository) {
 function Download-File([string]$Uri, [string]$Destination) {
     $parent = Split-Path -Parent $Destination
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
-    Invoke-WebRequest -UseBasicParsing -Headers $ApiHeaders -Uri $Uri -OutFile $Destination
+    Add-Type -AssemblyName System.Net.Http
+    $handler = New-Object Net.Http.HttpClientHandler
+    $handler.AllowAutoRedirect = $true
+    $client = New-Object Net.Http.HttpClient($handler)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('NeoModPack-Installer')
+    try {
+        $response = $client.GetAsync($Uri, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+        $response.EnsureSuccessStatusCode() | Out-Null
+        $total = $response.Content.Headers.ContentLength
+        $inputStream = $response.Content.ReadAsStreamAsync().Result
+        $outputStream = [IO.File]::Open($Destination, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try {
+            $buffer = New-Object byte[] (1024 * 1024)
+            [long]$downloaded = 0
+            while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                $outputStream.Write($buffer, 0, $read)
+                $downloaded += $read
+                if ($total -and $total -gt 0) {
+                    $percent = [int][Math]::Floor(($downloaded * 100.0) / $total)
+                    $detail = '{0}%  —  {1:N1} de {2:N1} MB' -f $percent, ($downloaded / 1MB), ($total / 1MB)
+                    Set-ProgressState $percent $detail
+                }
+                else {
+                    Set-ProgressState 0 ('{0:N1} MB descargados' -f ($downloaded / 1MB)) -Indeterminate
+                }
+            }
+        }
+        finally {
+            if ($outputStream) { $outputStream.Dispose() }
+            if ($inputStream) { $inputStream.Dispose() }
+        }
+    }
+    finally {
+        if ($response) { $response.Dispose() }
+        $client.Dispose()
+        $handler.Dispose()
+    }
 }
 
 function Install-SKLauncher {
@@ -137,8 +257,18 @@ function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOp
         return
     }
 
-    $answer = Read-Host 'Quieres aplicar la seleccion de packs de recursos recomendada? [s/N]'
-    if ($answer -notmatch '^(?i:s|si|sí|y|yes)$') {
+    if ($Gui) {
+        $choice = [Windows.Forms.MessageBox]::Show(
+            '¿Quieres aplicar la selección de packs de recursos recomendada?',
+            'Packs de recursos', 'YesNo', 'Question'
+        )
+        $accepted = $choice -eq [Windows.Forms.DialogResult]::Yes
+    }
+    else {
+        $answer = Read-Host 'Quieres aplicar la seleccion de packs de recursos recomendada? [s/N]'
+        $accepted = $answer -match '^(?i:s|si|sí|y|yes)$'
+    }
+    if (-not $accepted) {
         Write-Host 'Se conservaron tus packs de recursos actuales.'
         return
     }
@@ -241,6 +371,8 @@ function Register-SKLauncherInstance([string]$GameDirectory, $PackManifest) {
     $document | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $LauncherInstances -Encoding UTF8
 }
 
+if ($Gui) { Initialize-Gui }
+
 try {
     Write-Step 'Comprobando requisitos'
     Write-Host 'Git:         no es necesario'
@@ -280,9 +412,14 @@ try {
                 }
             }
             if (-not $InstallRoot) {
-                $answer = Read-Host "Carpeta de instalacion [$defaultRoot]"
-                if ([string]::IsNullOrWhiteSpace($answer)) { $InstallRoot = $defaultRoot }
-                else { $InstallRoot = [Environment]::ExpandEnvironmentVariables($answer.Trim('"')) }
+                if ($Gui) {
+                    $InstallRoot = $defaultRoot
+                }
+                else {
+                    $answer = Read-Host "Carpeta de instalacion [$defaultRoot]"
+                    if ([string]::IsNullOrWhiteSpace($answer)) { $InstallRoot = $defaultRoot }
+                    else { $InstallRoot = [Environment]::ExpandEnvironmentVariables($answer.Trim('"')) }
+                }
             }
         }
         $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
@@ -302,6 +439,7 @@ try {
                     Write-Host "`nNeo Modpack $($manifest.version) ya esta actualizado y completo." -ForegroundColor Green
                     Update-ResourcePackSelection $playerOptions $savedDefaultOptions
                     if (-not $SkipLauncher) { Register-SKLauncherInstance $gameDirectory $installedManifest }
+                    Show-Result "Neo Modpack $($manifest.version) ya está actualizado y completo." $true
                     exit 0
                 }
                 if ($installedState.version -ne $manifest.version) {
@@ -361,6 +499,8 @@ try {
             if (-not $UpdateOnly) { Start-Process -FilePath $LauncherExe }
         }
         Write-Host "`nNeo Modpack $($manifest.version) quedo instalado en:`n$gameDirectory" -ForegroundColor Green
+        Set-ProgressState 100 '100% — Instalación completada'
+        Show-Result "Neo Modpack $($manifest.version) quedó instalado correctamente.`n`n$gameDirectory" $true
     }
     finally {
         if ($working -and (Test-Path -LiteralPath $working)) {
@@ -371,5 +511,6 @@ try {
 }
 catch {
     Write-Host "`nERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Show-Result $_.Exception.Message $false
     exit 1
 }

@@ -35,7 +35,8 @@ el ZIP y `manifest.json`. Por ejemplo, la versión `1.0.0` usa el tag `v1.0.0`.
 El jugador solo necesita descargar y abrir `Instalar.bat`. No requiere Git,
 Python, CurseForge ni Java. El instalador usa Windows PowerShell, instala
 SKLauncher desde su repositorio oficial si hace falta, obtiene la última GitHub
-Release, verifica su SHA-256 y crea la instancia `Neo Modpack`.
+Release, verifica su SHA-256 y crea la instancia `Neo Modpack`. Una ventana
+gráfica muestra el estado, porcentaje y megabytes descargados.
 
 Antes de jugar puede abrir `Actualizar.bat`. Este compara la versión instalada,
 comprueba que no falten mods o recursos y verifica la integridad de los archivos

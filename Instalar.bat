@@ -30,9 +30,6 @@ if exist "%~dp0tools\install.ps1" (
   )
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_SCRIPT%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%INSTALLER_SCRIPT%" -Gui
 set "RESULT=%ERRORLEVEL%"
-echo.
-if not "%RESULT%"=="0" echo La instalacion no se completo.
-pause
 exit /b %RESULT%
