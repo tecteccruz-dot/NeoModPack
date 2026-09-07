@@ -3,6 +3,7 @@ FTPServer.txt
 
 # Datos generados por CurseForge y Minecraft
 .cache/
+.sable/
 .curseclient
 downloads/
 logs/
@@ -12,6 +13,10 @@ saves/
 screenshots/
 journeymap/
 backups/
+dynamic-data-pack-cache/
+dynamic-resource-pack-cache/
+essential/
+data/
 
 # Preferencias y datos personales del jugador
 options.txt
@@ -20,6 +25,10 @@ servers.dat
 servers.dat_old
 realms_persistence.json
 patchouli_data.json
+command_history.txt
+user-prefs.json
+usercache.json
+usernamecache.json
 
 # Contenido fuente del pack. El publicador lo empaqueta en GitHub Releases.
 mods/
@@ -28,9 +37,13 @@ defaultconfigs/
 resourcepacks/
 shaderpacks/
 patchouli_books/
+greatsage-voice/
 kubejs/
 scripts/
 minecraftinstance.json
+
+# Bibliotecas nativas extraídas durante la ejecución
+EffekseerNativeForJava.dll
 
 # Instaladores descargados y artefactos generados
 SKlauncher-*-setup.exe
