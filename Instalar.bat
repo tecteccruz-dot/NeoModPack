@@ -15,21 +15,17 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if exist "%~dp0tools\install.ps1" (
-  set "INSTALLER_SCRIPT=%~dp0tools\install.ps1"
-) else (
-  echo Descargando el instalador actualizado...
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri '%INSTALLER_URL%' -OutFile '%INSTALLER_SCRIPT%'"
-  if errorlevel 1 (
-    echo.
-    echo ERROR: No se pudo descargar el instalador.
-    echo Revisa tu conexion e intentalo de nuevo.
-    pause
-    exit /b 1
-  )
+echo Preparando el instalador...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $uri='%INSTALLER_URL%?cacheBust=' + [DateTime]::UtcNow.Ticks; Invoke-WebRequest -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} -Uri $uri -OutFile '%INSTALLER_SCRIPT%'"
+if errorlevel 1 (
+  echo.
+  echo ERROR: No se pudo descargar el instalador.
+  echo Revisa tu conexion e intentalo de nuevo.
+  pause
+  exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%INSTALLER_SCRIPT%" -Gui
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%INSTALLER_SCRIPT%" -Gui -InstanceDirectory "%~dp0."
 set "RESULT=%ERRORLEVEL%"
 exit /b %RESULT%

@@ -13,7 +13,7 @@ Cada versión publicará:
 
 - `Neo-<version>.zip`: contenido completo del modpack.
 - `manifest.json`: versión, tamaño, URL de descarga y SHA-256.
-- `Iniciar-Neo.exe`: instalador y actualizador para los jugadores.
+- `Instalar.bat` y `Actualizar.bat`: accesos para los jugadores.
 
 Los mundos, registros, credenciales y preferencias personales están excluidos
 del repositorio y de los paquetes publicados. `options.txt` es la excepción:
@@ -32,13 +32,16 @@ el ZIP y `manifest.json`. Por ejemplo, la versión `1.0.0` usa el tag `v1.0.0`.
 
 ## Instalación para jugadores
 
-El jugador solo necesita descargar y abrir `Instalar.bat`. No requiere Git,
-Python, CurseForge ni Java. El instalador usa Windows PowerShell, instala
-SKLauncher desde su repositorio oficial si hace falta, obtiene la última GitHub
-Release, verifica su SHA-256 y crea la instancia `Neo Modpack`. Una ventana
-gráfica muestra el estado, porcentaje y megabytes descargados.
+El jugador crea o abre la carpeta que usará como instancia, coloca allí
+`Instalar.bat` y lo ejecuta. No requiere Git, Python ni CurseForge. Primero elige
+entre Minecraft Launcher oficial y SKLauncher. Si elige SKLauncher, el instalador
+lo descarga desde su repositorio oficial cuando sea necesario y registra la
+instancia. Luego obtiene la última GitHub Release, verifica su SHA-256 y coloca el
+modpack directamente en la misma carpeta del `.bat`, sin crear una carpeta
+intermedia `game`. Una ventana gráfica muestra el estado, porcentaje y megabytes
+descargados.
 
-Antes de jugar puede abrir `Actualizar.bat`. Este compara la versión instalada,
+`Actualizar.bat` debe permanecer en esa misma carpeta. Este compara la versión instalada,
 comprueba que no falten mods o recursos y verifica la integridad de los archivos
 principales. Solo descarga nuevamente el pack cuando encuentra una actualización
 o necesita reparar la instalación. También pregunta si desea aplicar la selección

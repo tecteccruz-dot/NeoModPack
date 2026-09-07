@@ -20,6 +20,9 @@ data/
 .mixin.out/
 .qmenu_opened.marker
 ponders_watched.json
+greatsage-observations/
+NeoModPack.code-workspace
+a/
 
 # Preferencias y datos personales del jugador
 optionsof.txt
@@ -31,6 +34,9 @@ command_history.txt
 user-prefs.json
 usercache.json
 usernamecache.json
+.neo-state.json
+.neo-pack-manifest.json
+.neo-default-options.txt
 
 # Contenido fuente del pack. El publicador lo empaqueta en GitHub Releases.
 mods/

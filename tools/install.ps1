@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallRoot,
+    [string]$InstanceDirectory,
     [switch]$SkipLauncher,
     [switch]$UpdateOnly,
     [switch]$Gui,
@@ -336,6 +337,24 @@ function Set-ObjectProperty($Object, [string]$Name, $Value) {
     else { $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value }
 }
 
+function Select-LauncherMode {
+    if ($Gui) {
+        $choice = [Windows.Forms.MessageBox]::Show(
+            "¿Qué launcher usarás?`n`nSí  = SKLauncher`nNo = Minecraft Launcher oficial",
+            'Seleccionar launcher', 'YesNo', 'Question'
+        )
+        if ($choice -eq [Windows.Forms.DialogResult]::Yes) { return 'sklauncher' }
+        return 'official'
+    }
+
+    Write-Host "`nSelecciona el launcher:"
+    Write-Host '  1. SKLauncher'
+    Write-Host '  2. Minecraft Launcher oficial'
+    $answer = Read-Host 'Escribe 1 o 2'
+    if ($answer -eq '1') { return 'sklauncher' }
+    return 'official'
+}
+
 function Register-SKLauncherInstance([string]$GameDirectory, $PackManifest) {
     Write-Step 'Registrando la instancia en SKLauncher'
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LauncherInstances) | Out-Null
@@ -378,7 +397,7 @@ try {
     Write-Host 'Git:         no es necesario'
     Write-Host 'Python:      no es necesario'
     Write-Host 'CurseForge:  no es necesario'
-    Write-Host 'Java:        lo administra SKLauncher'
+    Write-Host 'Java:        lo administra el launcher elegido'
     Write-Host "PowerShell:  $($PSVersionTable.PSVersion)"
 
     if ($CheckOnly) {
@@ -386,7 +405,30 @@ try {
         exit 0
     }
 
-    if (-not $SkipLauncher) { Install-SKLauncher }
+    if (-not $InstanceDirectory) {
+        if ($InstallRoot) { $InstanceDirectory = $InstallRoot }
+        else { $InstanceDirectory = (Get-Location).Path }
+    }
+    $gameDirectory = [IO.Path]::GetFullPath($InstanceDirectory)
+    New-Item -ItemType Directory -Force -Path $gameDirectory | Out-Null
+    $statePath = Join-Path $gameDirectory '.neo-state.json'
+    $installedManifestPath = Join-Path $gameDirectory '.neo-pack-manifest.json'
+    $savedDefaultOptions = Join-Path $gameDirectory '.neo-default-options.txt'
+    $playerOptions = Join-Path $gameDirectory 'options.txt'
+    $hadPlayerOptions = Test-Path -LiteralPath $playerOptions
+
+    $launcherMode = $null
+    if ($UpdateOnly -and (Test-Path -LiteralPath $statePath)) {
+        $existingState = Get-Content -Raw -LiteralPath $statePath -Encoding UTF8 | ConvertFrom-Json
+        $launcherMode = $existingState.launcher_mode
+    }
+    if ($launcherMode -notin @('sklauncher', 'official')) {
+        Write-Step 'Seleccionando launcher'
+        $launcherMode = Select-LauncherMode
+    }
+    if ($launcherMode -eq 'sklauncher' -and -not $SkipLauncher) {
+        Install-SKLauncher
+    }
 
     Write-Step 'Buscando la ultima version de Neo Modpack'
     $release = Get-LatestRelease $PackRepository
@@ -402,43 +444,17 @@ try {
         $archiveAsset = $release.assets | Where-Object { $_.name -eq $manifest.archive.filename } | Select-Object -First 1
         if (-not $archiveAsset) { throw "La Release no contiene $($manifest.archive.filename)." }
 
-        if (-not $InstallRoot) {
-            $defaultRoot = Join-Path $env:LOCALAPPDATA 'NeoModPack'
-            $defaultState = Join-Path $defaultRoot 'state.json'
-            if ($UpdateOnly -and (Test-Path -LiteralPath $defaultState)) {
-                $savedState = Get-Content -Raw -LiteralPath $defaultState -Encoding UTF8 | ConvertFrom-Json
-                if ($savedState.game_directory) {
-                    $InstallRoot = Split-Path -Parent $savedState.game_directory
-                }
-            }
-            if (-not $InstallRoot) {
-                if ($Gui) {
-                    $InstallRoot = $defaultRoot
-                }
-                else {
-                    $answer = Read-Host "Carpeta de instalacion [$defaultRoot]"
-                    if ([string]::IsNullOrWhiteSpace($answer)) { $InstallRoot = $defaultRoot }
-                    else { $InstallRoot = [Environment]::ExpandEnvironmentVariables($answer.Trim('"')) }
-                }
-            }
-        }
-        $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
-        $gameDirectory = Join-Path $InstallRoot 'game'
-        $playerOptions = Join-Path $gameDirectory 'options.txt'
-        $savedDefaultOptions = Join-Path $InstallRoot 'defaults\options.txt'
-        $hadPlayerOptions = Test-Path -LiteralPath $playerOptions
-
         if ($UpdateOnly) {
             Write-Step 'Comprobando la instalacion actual'
-            $statePath = Join-Path $InstallRoot 'state.json'
-            $installedManifestPath = Join-Path $InstallRoot 'pack-manifest.json'
             if ((Test-Path -LiteralPath $statePath) -and (Test-Path -LiteralPath $installedManifestPath)) {
                 $installedState = Get-Content -Raw -LiteralPath $statePath -Encoding UTF8 | ConvertFrom-Json
                 $installedManifest = Get-Content -Raw -LiteralPath $installedManifestPath -Encoding UTF8 | ConvertFrom-Json
                 if (($installedState.version -eq $manifest.version) -and (Test-InstalledPack $gameDirectory $installedManifest)) {
                     Write-Host "`nNeo Modpack $($manifest.version) ya esta actualizado y completo." -ForegroundColor Green
                     Update-ResourcePackSelection $playerOptions $savedDefaultOptions
-                    if (-not $SkipLauncher) { Register-SKLauncherInstance $gameDirectory $installedManifest }
+                    if ($launcherMode -eq 'sklauncher' -and -not $SkipLauncher) {
+                        Register-SKLauncherInstance $gameDirectory $installedManifest
+                    }
                     Show-Result "Neo Modpack $($manifest.version) ya está actualizado y completo." $true
                     exit 0
                 }
@@ -477,30 +493,36 @@ try {
 
         $publishedOptions = Join-Path $extracted '.neo\defaults\options.txt'
         if (Test-Path -LiteralPath $publishedOptions) {
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $savedDefaultOptions) | Out-Null
             Copy-Item -LiteralPath $publishedOptions -Destination $savedDefaultOptions -Force
             if ($UpdateOnly -and $hadPlayerOptions) {
                 Update-ResourcePackSelection $playerOptions $savedDefaultOptions
             }
         }
 
-        New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
         $state = [pscustomobject]@{
             version = $manifest.version
             installed_at = [DateTime]::UtcNow.ToString('o')
             game_directory = $gameDirectory
+            launcher_mode = $launcherMode
             archive_sha256 = $manifest.archive.sha256
         }
-        $state | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InstallRoot 'state.json') -Encoding UTF8
-        Copy-Item -LiteralPath $internalManifestPath -Destination (Join-Path $InstallRoot 'pack-manifest.json') -Force
+        $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
+        Copy-Item -LiteralPath $internalManifestPath -Destination $installedManifestPath -Force
 
-        if (-not $SkipLauncher) {
+        if (-not $UpdateOnly) {
+            $updaterAsset = $release.assets | Where-Object { $_.name -eq 'Actualizar.bat' } | Select-Object -First 1
+            if ($updaterAsset) {
+                Write-Step 'Preparando el actualizador'
+                Download-File $updaterAsset.browser_download_url (Join-Path $gameDirectory 'Actualizar.bat')
+            }
+        }
+
+        if ($launcherMode -eq 'sklauncher' -and -not $SkipLauncher) {
             Register-SKLauncherInstance $gameDirectory $internalManifest
-            if (-not $UpdateOnly) { Start-Process -FilePath $LauncherExe }
         }
         Write-Host "`nNeo Modpack $($manifest.version) quedo instalado en:`n$gameDirectory" -ForegroundColor Green
         Set-ProgressState 100 '100% — Instalación completada'
-        Show-Result "Neo Modpack $($manifest.version) quedó instalado correctamente.`n`n$gameDirectory" $true
+        Show-Result "Neo Modpack $($manifest.version) quedó listo.`n`nTodos los archivos están en:`n$gameDirectory" $true
     }
     finally {
         if ($working -and (Test-Path -LiteralPath $working)) {

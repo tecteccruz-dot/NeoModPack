@@ -15,21 +15,17 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if exist "%~dp0tools\install.ps1" (
-  set "UPDATER_SCRIPT=%~dp0tools\install.ps1"
-) else (
-  echo Descargando el actualizador mas reciente...
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri '%UPDATER_URL%' -OutFile '%UPDATER_SCRIPT%'"
-  if errorlevel 1 (
-    echo.
-    echo ERROR: No se pudo descargar el actualizador.
-    echo Revisa tu conexion e intentalo de nuevo.
-    pause
-    exit /b 1
-  )
+echo Preparando el actualizador...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $uri='%UPDATER_URL%?cacheBust=' + [DateTime]::UtcNow.Ticks; Invoke-WebRequest -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} -Uri $uri -OutFile '%UPDATER_SCRIPT%'"
+if errorlevel 1 (
+  echo.
+  echo ERROR: No se pudo descargar el actualizador.
+  echo Revisa tu conexion e intentalo de nuevo.
+  pause
+  exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%UPDATER_SCRIPT%" -UpdateOnly -Gui
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%UPDATER_SCRIPT%" -UpdateOnly -Gui -InstanceDirectory "%~dp0."
 set "RESULT=%ERRORLEVEL%"
 exit /b %RESULT%

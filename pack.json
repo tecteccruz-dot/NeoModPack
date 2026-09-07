@@ -2,8 +2,8 @@
   "schema_version": 1,
   "name": "Neo",
   "repository": "tecteccruz-dot/NeoModPack",
-  "minecraft_version": "26.1.2",
-  "loader": "neoforge-26.1.2.104",
+  "minecraft_version": "1.21.1",
+  "loader": "neoforge-21.1.249",
   "managed_paths": [
     "mods",
     "config",
