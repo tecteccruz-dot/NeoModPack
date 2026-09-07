@@ -29,3 +29,10 @@ de descarga de la Release correspondiente.
 
 Después crea en GitHub una Release cuyo tag coincida con `v<version>` y adjunta
 el ZIP y `manifest.json`. Por ejemplo, la versión `1.0.0` usa el tag `v1.0.0`.
+
+## Instalación para jugadores
+
+El jugador solo necesita descargar y abrir `Instalar.bat`. No requiere Git,
+Python, CurseForge ni Java. El instalador usa Windows PowerShell, instala
+SKLauncher desde su repositorio oficial si hace falta, obtiene la última GitHub
+Release, verifica su SHA-256 y crea la instancia `Neo Modpack`.
