@@ -40,4 +40,6 @@ Release, verifica su SHA-256 y crea la instancia `Neo Modpack`.
 Antes de jugar puede abrir `Actualizar.bat`. Este compara la versión instalada,
 comprueba que no falten mods o recursos y verifica la integridad de los archivos
 principales. Solo descarga nuevamente el pack cuando encuentra una actualización
-o necesita reparar la instalación.
+o necesita reparar la instalación. También pregunta si desea aplicar la selección
+recomendada de packs; si acepta, reemplaza únicamente la propiedad `resourcePacks`
+de `options.txt` y conserva todas las demás preferencias del jugador.

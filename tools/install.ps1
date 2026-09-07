@@ -124,6 +124,40 @@ function Test-InstalledPack([string]$GameDirectory, $PackManifest) {
     return $true
 }
 
+function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOptions) {
+    if (-not (Test-Path -LiteralPath $PlayerOptions) -or -not (Test-Path -LiteralPath $DefaultOptions)) {
+        return
+    }
+
+    $defaultLine = Get-Content -LiteralPath $DefaultOptions |
+        Where-Object { $_ -match '^resourcePacks:' } |
+        Select-Object -First 1
+    if (-not $defaultLine) {
+        Write-Host 'El options.txt publicado no contiene resourcePacks; no se modifico nada.' -ForegroundColor Yellow
+        return
+    }
+
+    $answer = Read-Host 'Quieres aplicar la seleccion de packs de recursos recomendada? [s/N]'
+    if ($answer -notmatch '^(?i:s|si|sí|y|yes)$') {
+        Write-Host 'Se conservaron tus packs de recursos actuales.'
+        return
+    }
+
+    $lines = @(Get-Content -LiteralPath $PlayerOptions)
+    $found = $false
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -match '^resourcePacks:') {
+            $lines[$index] = $defaultLine
+            $found = $true
+            break
+        }
+    }
+    if (-not $found) { $lines += $defaultLine }
+    $utf8NoBom = [Text.UTF8Encoding]::new($false)
+    [IO.File]::WriteAllLines($PlayerOptions, [string[]]$lines, $utf8NoBom)
+    Write-Host 'La seleccion resourcePacks fue actualizada.' -ForegroundColor Green
+}
+
 function Install-PackFiles([string]$ExtractedRoot, [string]$GameDirectory, $PackManifest) {
     Write-Step 'Instalando el contenido del modpack'
     New-Item -ItemType Directory -Force -Path $GameDirectory | Out-Null
@@ -253,6 +287,9 @@ try {
         }
         $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
         $gameDirectory = Join-Path $InstallRoot 'game'
+        $playerOptions = Join-Path $gameDirectory 'options.txt'
+        $savedDefaultOptions = Join-Path $InstallRoot 'defaults\options.txt'
+        $hadPlayerOptions = Test-Path -LiteralPath $playerOptions
 
         if ($UpdateOnly) {
             Write-Step 'Comprobando la instalacion actual'
@@ -263,6 +300,7 @@ try {
                 $installedManifest = Get-Content -Raw -LiteralPath $installedManifestPath | ConvertFrom-Json
                 if (($installedState.version -eq $manifest.version) -and (Test-InstalledPack $gameDirectory $installedManifest)) {
                     Write-Host "`nNeo Modpack $($manifest.version) ya esta actualizado y completo." -ForegroundColor Green
+                    Update-ResourcePackSelection $playerOptions $savedDefaultOptions
                     if (-not $SkipLauncher) { Register-SKLauncherInstance $gameDirectory $installedManifest }
                     exit 0
                 }
@@ -298,6 +336,15 @@ try {
         $internalManifest = Get-Content -Raw -LiteralPath $internalManifestPath | ConvertFrom-Json
         Verify-PackFiles $extracted $internalManifest
         Install-PackFiles $extracted $gameDirectory $internalManifest
+
+        $publishedOptions = Join-Path $extracted '.neo\defaults\options.txt'
+        if (Test-Path -LiteralPath $publishedOptions) {
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $savedDefaultOptions) | Out-Null
+            Copy-Item -LiteralPath $publishedOptions -Destination $savedDefaultOptions -Force
+            if ($UpdateOnly -and $hadPlayerOptions) {
+                Update-ResourcePackSelection $playerOptions $savedDefaultOptions
+            }
+        }
 
         New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
         $state = [pscustomobject]@{
