@@ -2,6 +2,7 @@
 param(
     [string]$InstallRoot,
     [switch]$SkipLauncher,
+    [switch]$UpdateOnly,
     [switch]$CheckOnly
 )
 
@@ -102,6 +103,27 @@ function Verify-PackFiles([string]$ExtractedRoot, $PackManifest) {
     }
 }
 
+function Test-InstalledPack([string]$GameDirectory, $PackManifest) {
+    foreach ($file in $PackManifest.files) {
+        if ($file.category -ne 'managed') { continue }
+        $path = Join-Path $GameDirectory ($file.path.Replace('/', '\'))
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            Write-Host "Falta: $($file.path)" -ForegroundColor Yellow
+            return $false
+        }
+
+        $rootName = ($file.path -split '/')[0]
+        if ($rootName -in @('mods', 'resourcepacks', 'shaderpacks', 'greatsage-voice')) {
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $file.sha256) {
+                Write-Host "Dañado o modificado: $($file.path)" -ForegroundColor Yellow
+                return $false
+            }
+        }
+    }
+    return $true
+}
+
 function Install-PackFiles([string]$ExtractedRoot, [string]$GameDirectory, $PackManifest) {
     Write-Step 'Instalando el contenido del modpack'
     New-Item -ItemType Directory -Force -Path $GameDirectory | Out-Null
@@ -162,6 +184,7 @@ function Register-SKLauncherInstance([string]$GameDirectory, $PackManifest) {
     }
 
     $loaderVersion = $PackManifest.loader -replace '^neoforge-', ''
+    $desiredVersionId = "$($PackManifest.minecraft_version)-neoforge-$loaderVersion"
     $instance = $document.instances | Where-Object { $_.id -eq 'neo-modpack' } | Select-Object -First 1
     if (-not $instance) {
         $instance = [pscustomobject]@{
@@ -172,13 +195,15 @@ function Register-SKLauncherInstance([string]$GameDirectory, $PackManifest) {
         }
         $document.instances = @($document.instances) + $instance
     }
+    elseif ($instance.versionId -ne $desiredVersionId) {
+        Set-ObjectProperty $instance 'installComplete' $false
+    }
 
     Set-ObjectProperty $instance 'name' 'Neo Modpack'
-    Set-ObjectProperty $instance 'versionId' "$($PackManifest.minecraft_version)-neoforge-$loaderVersion"
+    Set-ObjectProperty $instance 'versionId' $desiredVersionId
     Set-ObjectProperty $instance 'minecraftVersion' $PackManifest.minecraft_version
     Set-ObjectProperty $instance 'loaderVersion' $loaderVersion
     Set-ObjectProperty $instance 'directory' $GameDirectory
-    Set-ObjectProperty $instance 'installComplete' $false
     $document | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $LauncherInstances -Encoding UTF8
 }
 
@@ -213,12 +238,45 @@ try {
 
         if (-not $InstallRoot) {
             $defaultRoot = Join-Path $env:LOCALAPPDATA 'NeoModPack'
-            $answer = Read-Host "Carpeta de instalacion [$defaultRoot]"
-            if ([string]::IsNullOrWhiteSpace($answer)) { $InstallRoot = $defaultRoot }
-            else { $InstallRoot = [Environment]::ExpandEnvironmentVariables($answer.Trim('"')) }
+            $defaultState = Join-Path $defaultRoot 'state.json'
+            if ($UpdateOnly -and (Test-Path -LiteralPath $defaultState)) {
+                $savedState = Get-Content -Raw -LiteralPath $defaultState | ConvertFrom-Json
+                if ($savedState.game_directory) {
+                    $InstallRoot = Split-Path -Parent $savedState.game_directory
+                }
+            }
+            if (-not $InstallRoot) {
+                $answer = Read-Host "Carpeta de instalacion [$defaultRoot]"
+                if ([string]::IsNullOrWhiteSpace($answer)) { $InstallRoot = $defaultRoot }
+                else { $InstallRoot = [Environment]::ExpandEnvironmentVariables($answer.Trim('"')) }
+            }
         }
         $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
         $gameDirectory = Join-Path $InstallRoot 'game'
+
+        if ($UpdateOnly) {
+            Write-Step 'Comprobando la instalacion actual'
+            $statePath = Join-Path $InstallRoot 'state.json'
+            $installedManifestPath = Join-Path $InstallRoot 'pack-manifest.json'
+            if ((Test-Path -LiteralPath $statePath) -and (Test-Path -LiteralPath $installedManifestPath)) {
+                $installedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+                $installedManifest = Get-Content -Raw -LiteralPath $installedManifestPath | ConvertFrom-Json
+                if (($installedState.version -eq $manifest.version) -and (Test-InstalledPack $gameDirectory $installedManifest)) {
+                    Write-Host "`nNeo Modpack $($manifest.version) ya esta actualizado y completo." -ForegroundColor Green
+                    if (-not $SkipLauncher) { Register-SKLauncherInstance $gameDirectory $installedManifest }
+                    exit 0
+                }
+                if ($installedState.version -ne $manifest.version) {
+                    Write-Host "Nueva version: $($installedState.version) -> $($manifest.version)"
+                }
+                else {
+                    Write-Host 'Se reparara la instalacion actual.'
+                }
+            }
+            else {
+                Write-Host 'No encontre una instalacion completa; se realizara la instalacion inicial.'
+            }
+        }
 
         Write-Step "Descargando Neo Modpack $($manifest.version)"
         $archiveFile = Join-Path $working $manifest.archive.filename
@@ -249,10 +307,11 @@ try {
             archive_sha256 = $manifest.archive.sha256
         }
         $state | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $InstallRoot 'state.json') -Encoding UTF8
+        Copy-Item -LiteralPath $internalManifestPath -Destination (Join-Path $InstallRoot 'pack-manifest.json') -Force
 
         if (-not $SkipLauncher) {
             Register-SKLauncherInstance $gameDirectory $internalManifest
-            Start-Process -FilePath $LauncherExe
+            if (-not $UpdateOnly) { Start-Process -FilePath $LauncherExe }
         }
         Write-Host "`nNeo Modpack $($manifest.version) quedo instalado en:`n$gameDirectory" -ForegroundColor Green
     }
