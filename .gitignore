@@ -17,9 +17,11 @@ dynamic-data-pack-cache/
 dynamic-resource-pack-cache/
 essential/
 data/
+.mixin.out/
+.qmenu_opened.marker
+ponders_watched.json
 
 # Preferencias y datos personales del jugador
-options.txt
 optionsof.txt
 servers.dat
 servers.dat_old

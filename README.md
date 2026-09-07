@@ -16,7 +16,9 @@ Cada versión publicará:
 - `Iniciar-Neo.exe`: instalador y actualizador para los jugadores.
 
 Los mundos, registros, credenciales y preferencias personales están excluidos
-del repositorio y de los paquetes publicados.
+del repositorio y de los paquetes publicados. `options.txt` es la excepción:
+se conserva como configuración predeterminada para aplicar la selección de
+`resourcePacks` del administrador.
 
 ## Crear una versión
 
