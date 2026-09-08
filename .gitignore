@@ -8,6 +8,7 @@ FTPServer.txt
 downloads/
 logs/
 crash-reports/
+debug/
 debug.log
 saves/
 screenshots/
