@@ -258,22 +258,6 @@ function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOp
         return
     }
 
-    if ($Gui) {
-        $choice = [Windows.Forms.MessageBox]::Show(
-            '¿Quieres aplicar la selección de packs de recursos recomendada?',
-            'Packs de recursos', 'YesNo', 'Question'
-        )
-        $accepted = $choice -eq [Windows.Forms.DialogResult]::Yes
-    }
-    else {
-        $answer = Read-Host 'Quieres aplicar la seleccion de packs de recursos recomendada? [s/N]'
-        $accepted = $answer -match '^(?i:s|si|sí|y|yes)$'
-    }
-    if (-not $accepted) {
-        Write-Host 'Se conservaron tus packs de recursos actuales.'
-        return
-    }
-
     $lines = @(Get-Content -LiteralPath $PlayerOptions -Encoding UTF8)
     $found = $false
     for ($index = 0; $index -lt $lines.Count; $index++) {
@@ -286,7 +270,7 @@ function Update-ResourcePackSelection([string]$PlayerOptions, [string]$DefaultOp
     if (-not $found) { $lines += $defaultLine }
     $utf8NoBom = [Text.UTF8Encoding]::new($false)
     [IO.File]::WriteAllLines($PlayerOptions, [string[]]$lines, $utf8NoBom)
-    Write-Host 'La seleccion resourcePacks fue actualizada.' -ForegroundColor Green
+    Write-Host 'Se aplicaron los packs de recursos obligatorios.' -ForegroundColor Green
 }
 
 function Install-PackFiles([string]$ExtractedRoot, [string]$GameDirectory, $PackManifest) {
@@ -295,6 +279,24 @@ function Install-PackFiles([string]$ExtractedRoot, [string]$GameDirectory, $Pack
     $rollback = Join-Path (Split-Path -Parent $GameDirectory) ('.rollback-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $rollback | Out-Null
     $replaced = New-Object System.Collections.Generic.List[string]
+    $settingsBackup = Join-Path $rollback '.player-render-settings'
+    $renderSettings = @(
+        'config\iris.properties',
+        'config\sodium-options.json',
+        'config\entity_model_features.json',
+        'config\entity_texture_features.json',
+        'config\immediatelyfast.json',
+        'config\fabric\indigo-renderer.properties'
+    )
+
+    foreach ($relative in $renderSettings) {
+        $current = Join-Path $GameDirectory $relative
+        if (Test-Path -LiteralPath $current -PathType Leaf) {
+            $backupFile = Join-Path $settingsBackup $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $backupFile) | Out-Null
+            Copy-Item -LiteralPath $current -Destination $backupFile
+        }
+    }
 
     $roots = $PackManifest.files |
         Where-Object { $_.category -eq 'managed' } |
@@ -311,6 +313,15 @@ function Install-PackFiles([string]$ExtractedRoot, [string]$GameDirectory, $Pack
                 $replaced.Add($name)
             }
             Move-Item -LiteralPath $source -Destination $target
+        }
+
+        foreach ($relative in $renderSettings) {
+            $backupFile = Join-Path $settingsBackup $relative
+            if (Test-Path -LiteralPath $backupFile -PathType Leaf) {
+                $target = Join-Path $GameDirectory $relative
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+                Copy-Item -LiteralPath $backupFile -Destination $target -Force
+            }
         }
 
         $defaultOptions = Join-Path $ExtractedRoot '.neo\defaults\options.txt'

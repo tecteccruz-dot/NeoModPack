@@ -44,6 +44,8 @@ descargados.
 `Actualizar.bat` debe permanecer en esa misma carpeta. Este compara la versión instalada,
 comprueba que no falten mods o recursos y verifica la integridad de los archivos
 principales. Solo descarga nuevamente el pack cuando encuentra una actualización
-o necesita reparar la instalación. También pregunta si desea aplicar la selección
-recomendada de packs; si acepta, reemplaza únicamente la propiedad `resourcePacks`
-de `options.txt` y conserva todas las demás preferencias del jugador.
+o necesita reparar la instalación. La propiedad `resourcePacks` de `options.txt`
+se aplica siempre porque los paquetes de texturas forman parte obligatoria del
+pack. Las teclas, distancia de renderizado, gráficos y las demás preferencias del
+jugador se conservan. También se preservan los ajustes personales de Iris, Sodium,
+Entity Model/Texture Features, ImmediatelyFast e Indigo.
